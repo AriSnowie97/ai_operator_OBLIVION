@@ -211,4 +211,8 @@ public class OperatorWebSocketClient implements WebSocket.Listener {
     public boolean isConnected() {
         return connected.get();
     }
+
+    public CameraController getCameraController() {
+        return cameraController;
+    }
 }

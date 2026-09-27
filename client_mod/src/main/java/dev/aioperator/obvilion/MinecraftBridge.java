@@ -31,6 +31,15 @@ public class MinecraftBridge {
         return mcInstance;
     }
 
+    public static void execute(Runnable runnable) {
+        Object mc = getMinecraft();
+        if (mc instanceof Executor executor) {
+            executor.execute(runnable);
+        } else {
+            runnable.run();
+        }
+    }
+
     public static Object getPlayer() {
         Object mc = getMinecraft();
         if (mc == null) return null;
@@ -126,12 +135,23 @@ public class MinecraftBridge {
         });
     }
 
-    public static void execute(Runnable runnable) {
-        Object mc = getMinecraft();
-        if (mc instanceof Executor executor) {
-            executor.execute(runnable);
-        } else {
-            runnable.run();
-        }
+    public static void printChatMessage(String message) {
+        execute(() -> {
+            try {
+                Object player = getPlayer();
+                if (player == null) return;
+                try {
+                    // Mojang mappings
+                    Class<?> compClass = Class.forName("net.minecraft.network.chat.Component");
+                    Object comp = compClass.getMethod("literal", String.class).invoke(null, message);
+                    player.getClass().getMethod("sendSystemMessage", compClass).invoke(player, comp);
+                } catch (ClassNotFoundException e) {
+                    // Yarn mappings
+                    Class<?> textClass = Class.forName("net.minecraft.text.Text");
+                    Object comp = textClass.getMethod("literal", String.class).invoke(null, message);
+                    player.getClass().getMethod("sendMessage", textClass, boolean.class).invoke(player, comp, false);
+                }
+            } catch (Exception ignored) {}
+        });
     }
 }
