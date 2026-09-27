@@ -78,16 +78,19 @@ public class CameraController {
     }
 
     public void handleOrbit(JsonObject packet) {
-        JsonObject center = packet.getAsJsonObject("center");
-        if (center == null && packet.has("center")) {
-            var arr = packet.getAsJsonArray("center");
-            orbitCenterX = arr.get(0).getAsDouble();
-            orbitCenterY = arr.get(1).getAsDouble();
-            orbitCenterZ = arr.get(2).getAsDouble();
-        } else if (center != null) {
-            orbitCenterX = center.get("x").getAsDouble();
-            orbitCenterY = center.get("y").getAsDouble();
-            orbitCenterZ = center.get("z").getAsDouble();
+        if (packet.has("center")) {
+            var centerElem = packet.get("center");
+            if (centerElem.isJsonArray()) {
+                var arr = centerElem.getAsJsonArray();
+                orbitCenterX = arr.get(0).getAsDouble();
+                orbitCenterY = arr.get(1).getAsDouble();
+                orbitCenterZ = arr.get(2).getAsDouble();
+            } else if (centerElem.isJsonObject()) {
+                var obj = centerElem.getAsJsonObject();
+                orbitCenterX = obj.get("x").getAsDouble();
+                orbitCenterY = obj.get("y").getAsDouble();
+                orbitCenterZ = obj.get("z").getAsDouble();
+            }
         }
         orbitRadius = packet.has("radius") ? packet.get("radius").getAsDouble() : 20.0;
         orbitSpeed  = packet.has("speed")  ? packet.get("speed").getAsDouble()  : 15.0;
@@ -99,6 +102,23 @@ public class CameraController {
 
         AiOperatorClient.LOGGER.info("[Camera] ORBIT вокруг ({}, {}, {}) R={} speed={}°/s",
                 orbitCenterX, orbitCenterY, orbitCenterZ, orbitRadius, orbitSpeed);
+    }
+
+    public void handleReturnToPlayer() {
+        double[] p = MinecraftBridge.getPlayerPos();
+        float[] r = MinecraftBridge.getPlayerRot();
+        targetX = p[0];
+        targetY = p[1] + 2.5;
+        targetZ = p[2] - 3.5;
+        targetPitch = 15f;
+        targetYaw = r[1];
+        startX = currentX; startY = currentY; startZ = currentZ;
+        startPitch = currentPitch; startYaw = currentYaw;
+        moveDurationTicks = 15f; // 0.75 сек
+        moveElapsedTicks = 0f;
+        isMoving = true;
+        isOrbiting = false;
+        AiOperatorClient.LOGGER.info("[Camera] Возврат к игроку ({}, {}, {})", targetX, targetY, targetZ);
     }
 
     public void handleSetFov(JsonObject packet) {

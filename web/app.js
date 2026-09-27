@@ -295,6 +295,13 @@ document.getElementById('btn-record-toggle').addEventListener('click', async fun
   await fetch(endpoint, { method: 'POST', headers: { 'X-Role': 'streamer' } });
 });
 
+document.getElementById('btn-return-player').addEventListener('click', async function() {
+  await fetch('/api/camera/return_to_player', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Role': 'streamer' }
+  });
+});
+
 document.getElementById('btn-orbit-current').addEventListener('click', async function() {
   const pos = currentStatus.position || {};
   await fetch('/api/orbit', {

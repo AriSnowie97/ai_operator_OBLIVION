@@ -97,6 +97,15 @@ async def start_orbit(
         raise HTTPException(status_code=400, detail=result.get("message"))
     return result
 
+@app.post("/api/camera/return_to_player")
+async def return_to_player(
+    x_token: Optional[str] = Header(None, alias="X-Auth-Token"),
+    x_role: Optional[str] = Header("streamer", alias="X-Role")
+):
+    role = get_user_role(x_token, x_role)
+    await camera_controller.send_to_client({"type": "RETURN_TO_PLAYER"})
+    return {"success": True, "message": "Returning camera to player"}
+
 @app.post("/api/fov")
 async def set_fov(
     body: Dict[str, Any] = Body(...),

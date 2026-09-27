@@ -103,13 +103,14 @@ public class OperatorWebSocketClient implements WebSocket.Listener {
             AiOperatorClient.LOGGER.debug("[AI Operator] Получена команда: {}", type);
 
             switch (type) {
-                case "MOVE"            -> cameraController.handleMove(packet);
-                case "ORBIT"           -> cameraController.handleOrbit(packet);
-                case "SET_FOV"         -> cameraController.handleSetFov(packet);
-                case "SET_SHADER"      -> cameraController.handleSetShader(packet);
-                case "START_RECORDING" -> cameraController.startRecording();
-                case "STOP_RECORDING"  -> cameraController.stopRecording();
-                case "EMERGENCY_STOP"  -> cameraController.handleEmergencyStop(packet);
+                case "MOVE"              -> cameraController.handleMove(packet);
+                case "ORBIT"             -> cameraController.handleOrbit(packet);
+                case "RETURN_TO_PLAYER"  -> cameraController.handleReturnToPlayer();
+                case "SET_FOV"           -> cameraController.handleSetFov(packet);
+                case "SET_SHADER"        -> cameraController.handleSetShader(packet);
+                case "START_RECORDING"   -> cameraController.startRecording();
+                case "STOP_RECORDING"    -> cameraController.stopRecording();
+                case "EMERGENCY_STOP"    -> cameraController.handleEmergencyStop(packet);
                 default -> AiOperatorClient.LOGGER.warn("[AI Operator] Неизвестная команда: {}", type);
             }
         } catch (Exception e) {
@@ -160,12 +161,16 @@ public class OperatorWebSocketClient implements WebSocket.Listener {
 
             double[] pos = cameraController.getCurrentPosition();
             float[] rot = cameraController.getCurrentRotation();
+            double[] playerPos = MinecraftBridge.getPlayerPos();
 
             telemetry.addProperty("x", pos[0]);
             telemetry.addProperty("y", pos[1]);
             telemetry.addProperty("z", pos[2]);
             telemetry.addProperty("pitch", rot[0]);
             telemetry.addProperty("yaw", rot[1]);
+            telemetry.addProperty("player_x", playerPos[0]);
+            telemetry.addProperty("player_y", playerPos[1]);
+            telemetry.addProperty("player_z", playerPos[2]);
             telemetry.addProperty("roll", 0.0f);
             telemetry.addProperty("fov", MinecraftBridge.getFov());
             telemetry.addProperty("fps", MinecraftBridge.getFps());
