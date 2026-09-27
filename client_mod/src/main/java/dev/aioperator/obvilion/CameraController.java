@@ -1,8 +1,9 @@
 package dev.aioperator.obvilion;
 
 import com.google.gson.JsonObject;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.GameOptions;
+import net.minecraft.entity.Entity;
 
 /**
  * CameraController — обрабатывает все команды движения камеры.
@@ -228,11 +229,55 @@ public class CameraController {
 
     private void applyPositionToPlayer(MinecraftClient client) {
         if (client.player == null) return;
-        // В spectator режиме — двигаем игрока напрямую
+
+        // Пробуем управлять через Freecam мод (net.xolt.freecam)
+        if (tryApplyViaFreecam(currentX, currentY, currentZ, currentPitch, currentYaw)) {
+            return;
+        }
+
+        // Fallback: двигаем игрока напрямую (spectator режим)
         client.player.setPosition(currentX, currentY, currentZ);
         client.player.setPitch(currentPitch);
         client.player.setYaw(currentYaw);
     }
+
+    /**
+     * Управляет FreeCamera через reflection API Freecam мода.
+     * Freecam 1.5.x: net.xolt.freecam.Freecam + FreeCamera entity
+     */
+    private boolean tryApplyViaFreecam(double x, double y, double z, float pitch, float yaw) {
+        try {
+            // Проверяем что Freecam загружен
+            if (!FabricLoader.getInstance().isModLoaded("freecam")) return false;
+
+            // Активируем Freecam если ещё не активен
+            Class<?> freecamClass = Class.forName("net.xolt.freecam.Freecam");
+            Object freecamInstance = freecamClass.getMethod("getInstance").invoke(null);
+
+            boolean isActive = (boolean) freecamClass.getMethod("isEnabled").invoke(freecamInstance);
+            if (!isActive) {
+                // Включаем Freecam программно
+                freecamClass.getMethod("toggle").invoke(freecamInstance);
+                freecamActive = true;
+                AiOperatorClient.LOGGER.info("[Camera] Freecam активирован автоматически!");
+            }
+
+            // Получаем FreeCamera entity и двигаем её
+            Entity freeCamera = (Entity) freecamClass.getMethod("getFreeCamera").invoke(freecamInstance);
+            if (freeCamera != null) {
+                freeCamera.setPosition(x, y, z);
+                freeCamera.setPitch(pitch);
+                freeCamera.setYaw(yaw);
+                return true;
+            }
+        } catch (ClassNotFoundException e) {
+            // Freecam не установлен — тихо игнорируем, используем fallback
+        } catch (Exception e) {
+            AiOperatorClient.LOGGER.debug("[Camera] Freecam API error: {}", e.getMessage());
+        }
+        return false;
+    }
+
 
     // ─── Геттеры ───────────────────────────────────────────────────────────────
 

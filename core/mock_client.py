@@ -6,7 +6,7 @@ import sys
 import websockets
 
 class MockMinecraftClient:
-    def __init__(self, uri: str = "ws://localhost:8000/ws/client"):
+    def __init__(self, uri: str = "wss://aioperatoroblivion-production.up.railway.app/ws/client"):
         self.uri = uri
         self.x = 0.0
         self.y = 100.0
