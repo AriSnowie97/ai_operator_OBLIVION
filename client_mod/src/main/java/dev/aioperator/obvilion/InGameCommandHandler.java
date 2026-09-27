@@ -12,7 +12,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * Перехватывает сообщения из чата клиента (как с префиксом точки .cam, так и со слэшем /cam),
  * чтобы сервер не получал их и не ругался "Невідома команда".
  *
- * Команды позиционирования и ракурсов:
+ * Команды:
+ *  .cam off / .cam exit — полностью выключить режим камеры и вернуться в тело игрока
+ *  .cam unlock — снять аварийную блокировку стоп-крана
  *  .cam front — вид спереди на лицо персонажа
  *  .cam back — вид сзади за спиной
  *  .cam side — кинематографичный вид сбоку
@@ -24,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *  .cam lock — зафиксировать камеру на месте и вернуть управление персонажу
  *  .cam free — включить / выключить Freecam для ручного полёта
  *  .cam orbit [радиус] — запустить плавную орбиту вокруг игрока
- *  .cam stop — экстренная остановка
+ *  .cam stop — экстренная остановка (выход из камеры к игроку)
  *  .cam fov <число> — изменить FOV
  *  .cam help — список команд
  */
@@ -32,13 +34,15 @@ public class InGameCommandHandler {
 
     private static final Map<String, double[]> savedWaypoints = new ConcurrentHashMap<>();
 
-    public static void register(CameraController cameraController) {
+    public static void register(OperatorWebSocketClient wsClient) {
+        CameraController cameraController = wsClient.getCameraController();
+
         // Перехват обычного чата (например, .cam orbit или .op orbit)
         ClientSendMessageEvents.ALLOW_CHAT.register(message -> {
             String trimmed = message.trim();
             if (trimmed.startsWith(".cam") || trimmed.startsWith(".op")) {
                 String args = trimmed.replaceFirst("^\\.(cam|op)", "").trim();
-                handleCommand(args, cameraController);
+                handleCommand(args, cameraController, wsClient);
                 return false; // Отменяем отправку на сервер!
             }
             return true;
@@ -49,7 +53,7 @@ public class InGameCommandHandler {
             String trimmed = command.trim();
             if (trimmed.startsWith("cam") || trimmed.startsWith("op")) {
                 String args = trimmed.replaceFirst("^(cam|op)", "").trim();
-                handleCommand(args, cameraController);
+                handleCommand(args, cameraController, wsClient);
                 return false; // Отменяем отправку на сервер!
             }
             return true;
@@ -58,11 +62,22 @@ public class InGameCommandHandler {
         AiOperatorClient.LOGGER.info("[AI Operator] Внутриигровые команды чата (.cam / /cam) зарегистрированы!");
     }
 
-    private static void handleCommand(String args, CameraController cameraController) {
+    private static void handleCommand(String args, CameraController cameraController, OperatorWebSocketClient wsClient) {
         String[] parts = args.isEmpty() ? new String[0] : args.split("\\s+");
         String sub = parts.length > 0 ? parts[0].toLowerCase() : "help";
 
         switch (sub) {
+            case "off", "exit", "close", "disable" -> {
+                cameraController.exitCameraMode();
+                MinecraftBridge.printChatMessage("§b[AI Operator] §aСвободная камера отключена! Вы вернулись к обычному виду персонажа.");
+            }
+            case "unlock", "unblock", "reset_lock" -> {
+                cameraController.exitCameraMode();
+                if (wsClient != null) {
+                    wsClient.unlockEmergency();
+                }
+                MinecraftBridge.printChatMessage("§b[AI Operator] §aЗапрос на снятие блокировки стоп-крана отправлен!");
+            }
             case "front" -> {
                 cameraController.setPresetFront();
                 MinecraftBridge.printChatMessage("§b[AI Operator] §a🎥 Ракурс: СПЕРЕДИ (вид на лицо)!");
@@ -161,7 +176,9 @@ public class InGameCommandHandler {
             }
             case "stop" -> {
                 cameraController.handleEmergencyStop(new JsonObject());
-                MinecraftBridge.printChatMessage("§b[AI Operator] §c🛑 Движение камеры остановлено.");
+                if (wsClient != null) {
+                    wsClient.unlockEmergency();
+                }
             }
             case "fov" -> {
                 if (parts.length > 1) {
@@ -188,6 +205,8 @@ public class InGameCommandHandler {
             }
             default -> {
                 MinecraftBridge.printChatMessage("§b§l=== AI CAMERA OPERATOR ===");
+                MinecraftBridge.printChatMessage("§a.cam off §7(или .cam exit) - §eвыйти из камеры в тело игрока");
+                MinecraftBridge.printChatMessage("§a.cam unlock §7- снять блокировку стоп-крана");
                 MinecraftBridge.printChatMessage("§e.cam front §7- поставить камеру перед лицом");
                 MinecraftBridge.printChatMessage("§e.cam back §7- поставить камеру сзади");
                 MinecraftBridge.printChatMessage("§e.cam side §7- кинематографичный вид сбоку");

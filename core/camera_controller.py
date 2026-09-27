@@ -354,13 +354,11 @@ class CameraController:
         if self.interpolation_task and not self.interpolation_task.done():
             self.interpolation_task.cancel()
 
-        safe = config.presets.get("safe_spawn", {"x": 0.0, "y": 100.0, "z": 0.0, "pitch": 0.0, "yaw": 0.0, "roll": 0.0, "fov": 70.0})
-        self.status.position = CameraPosition(**safe)
-        self.status.mode = CameraMode.TRIPOD
-        self.status.active_preset = "safe_spawn"
+        self.status.mode = CameraMode.FOLLOW_PLAYER
+        self.status.active_preset = None
         
-        await self.send_to_client({"type": "EMERGENCY_STOP", "safe_position": safe})
+        await self.send_to_client({"type": "EMERGENCY_STOP", "action": "return_to_player", "reason": reason})
         await self.broadcast_telemetry()
-        return {"success": True, "message": f"EMERGENCY STOP TRIGGERED: Returned to safe spawn ({reason})"}
+        return {"success": True, "message": f"СТОП-КРАН активирован: Камера немедленно остановлена и возвращена игроку ({reason})"}
 
 camera_controller = CameraController()

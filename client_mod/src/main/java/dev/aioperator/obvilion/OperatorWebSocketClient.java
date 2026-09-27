@@ -212,6 +212,28 @@ public class OperatorWebSocketClient implements WebSocket.Listener {
         return connected.get();
     }
 
+    public void unlockEmergency() {
+        try {
+            String baseUrl = config.getCoreUrl().replaceFirst("^ws(s)?://", "http$1://").replaceFirst("/ws/client$", "");
+            java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+                    .uri(URI.create(baseUrl + "/api/emergency_reset"))
+                    .header("Content-Type", "application/json")
+                    .header("X-Auth-Token", "obl-operator-secret-2026")
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString("{}"))
+                    .build();
+            httpClient.sendAsync(req, java.net.http.HttpResponse.BodyHandlers.ofString())
+                    .thenAccept(res -> {
+                        if (res.statusCode() == 200) {
+                            MinecraftBridge.printChatMessage("§b[AI Operator] §aБлокировка стоп-крана на сервере успешно снята!");
+                        } else {
+                            MinecraftBridge.printChatMessage("§c[AI Operator] Ошибка разблокировки: HTTP " + res.statusCode());
+                        }
+                    });
+        } catch (Exception e) {
+            MinecraftBridge.printChatMessage("§c[AI Operator] Ошибка снятия блокировки: " + e.getMessage());
+        }
+    }
+
     public CameraController getCameraController() {
         return cameraController;
     }

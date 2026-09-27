@@ -48,7 +48,7 @@ public class AiOperatorClient implements ClientModInitializer {
         }, 100, 50, TimeUnit.MILLISECONDS);
 
         // Регистрируем внутриигровые команды чата (.cam / /cam)
-        InGameCommandHandler.register(wsClient.getCameraController());
+        InGameCommandHandler.register(wsClient);
 
         LOGGER.info("[AI Operator] Инициализация завершена. Core: {}", config.getCoreUrl());
     }

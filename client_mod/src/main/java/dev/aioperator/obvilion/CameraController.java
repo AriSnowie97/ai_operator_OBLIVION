@@ -253,22 +253,28 @@ public class CameraController {
         });
     }
 
+    public void exitCameraMode() {
+        isMoving = false;
+        isOrbiting = false;
+        try {
+            if (FabricLoader.getInstance().isModLoaded("freecam")) {
+                Class<?> freecamClass = Class.forName("net.xolt.freecam.Freecam");
+                boolean isEnabled = (boolean) freecamClass.getMethod("isEnabled").invoke(null);
+                if (isEnabled) {
+                    freecamClass.getMethod("toggle").invoke(null);
+                }
+            }
+        } catch (Exception ignored) {}
+        freecamActive = false;
+        AiOperatorClient.LOGGER.info("[Camera] Выход из режима свободной камеры.");
+    }
+
     public void handleEmergencyStop(JsonObject packet) {
         isMoving = false;
         isOrbiting = false;
-
-        if (packet.has("safe_position")) {
-            JsonObject safe = packet.getAsJsonObject("safe_position");
-            currentX = safe.get("x").getAsDouble();
-            currentY = safe.get("y").getAsDouble();
-            currentZ = safe.get("z").getAsDouble();
-            currentPitch = safe.get("pitch").getAsFloat();
-            currentYaw   = safe.get("yaw").getAsFloat();
-
-            applyPosition();
-        }
-
-        AiOperatorClient.LOGGER.warn("[Camera] 🚨 EMERGENCY STOP! Камера остановлена.");
+        exitCameraMode();
+        MinecraftBridge.printChatMessage("§c[AI Operator] 🛑 СТОП-КРАН активирован! Свободная камера отключена, вы вернулись к персонажу.");
+        AiOperatorClient.LOGGER.warn("[Camera] 🚨 EMERGENCY STOP! Свободная камера отключена, возврат игроку.");
     }
 
     public void startRecording() {
