@@ -2,7 +2,6 @@ package dev.aioperator.obvilion;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import net.minecraft.client.MinecraftClient;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -13,12 +12,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * WebSocket-клиент для связи с AI Operator Core.
- * Использует стандартный java.net.http.WebSocket (встроен в Java 21, без внешних зависимостей).
- *
- * Возможности:
- *  - Автоматическое переподключение каждые 3 секунды при разрыве
- *  - Обработка команд: MOVE, ORBIT, SET_FOV, SET_SHADER, EMERGENCY_STOP
- *  - Отправка телеметрии 20 раз в секунду (каждый тик)
+ * Использует стандартный java.net.http.WebSocket (встроен в Java 21).
+ * Полностью независим от Minecraft классов в байткоде (через MinecraftBridge).
  */
 public class OperatorWebSocketClient implements WebSocket.Listener {
 
@@ -32,7 +27,6 @@ public class OperatorWebSocketClient implements WebSocket.Listener {
     private final CameraController cameraController;
     private final StringBuilder messageBuffer = new StringBuilder();
 
-    // Телеметрия отправляется раз в тик (20/сек), но не чаще раза в 50мс
     private long lastTelemetryMs = 0;
     private static final long TELEMETRY_INTERVAL_MS = 50;
 
@@ -141,33 +135,31 @@ public class OperatorWebSocketClient implements WebSocket.Listener {
     // ─── Tick Handler ──────────────────────────────────────────────────────────
 
     /**
-     * Вызывается каждый тик клиента (20 раз в секунду).
-     * Обновляет плавное движение камеры и отправляет телеметрию.
+     * Вызывается каждые 50мс из AiOperatorClient фонового таймера.
      */
-    public void onTick(MinecraftClient client) {
-        if (client.player == null) return;
+    public void onTick() {
+        if (!MinecraftBridge.isPlayerInWorld()) return;
 
         // Обновляем плавное движение камеры
-        cameraController.tick(client);
+        cameraController.tick();
 
         // Отправляем телеметрию раз в 50мс
         long now = System.currentTimeMillis();
         if (connected.get() && (now - lastTelemetryMs) >= TELEMETRY_INTERVAL_MS) {
             lastTelemetryMs = now;
-            sendTelemetry(client);
+            sendTelemetry();
         }
     }
 
     // ─── Telemetry ─────────────────────────────────────────────────────────────
 
-    private void sendTelemetry(MinecraftClient client) {
+    private void sendTelemetry() {
         try {
             JsonObject telemetry = new JsonObject();
             telemetry.addProperty("type", "TELEMETRY");
 
-            // Позиция и ориентация из FreeCam если активна, иначе игрок
-            double[] pos = cameraController.getCurrentPosition(client);
-            float[] rot = cameraController.getCurrentRotation(client);
+            double[] pos = cameraController.getCurrentPosition();
+            float[] rot = cameraController.getCurrentRotation();
 
             telemetry.addProperty("x", pos[0]);
             telemetry.addProperty("y", pos[1]);
@@ -175,9 +167,9 @@ public class OperatorWebSocketClient implements WebSocket.Listener {
             telemetry.addProperty("pitch", rot[0]);
             telemetry.addProperty("yaw", rot[1]);
             telemetry.addProperty("roll", 0.0f);
-            telemetry.addProperty("fov", client.options.getFov().getValue());
-            telemetry.addProperty("fps", client.getCurrentFps());
-            telemetry.addProperty("ping", client.player.networkHandler != null ? 0 : -1);
+            telemetry.addProperty("fov", MinecraftBridge.getFov());
+            telemetry.addProperty("fps", MinecraftBridge.getFps());
+            telemetry.addProperty("ping", 0);
             telemetry.addProperty("is_recording", cameraController.isRecording());
             telemetry.addProperty("shader", cameraController.getCurrentShader());
             telemetry.addProperty("freecam_active", cameraController.isFreecamActive());

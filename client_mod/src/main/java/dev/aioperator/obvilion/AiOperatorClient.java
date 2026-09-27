@@ -1,13 +1,17 @@
 package dev.aioperator.obvilion;
 
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * AI Operator Client — главная точка входа Fabric мода.
  * Запускает WebSocket-соединение с Core-сервером и обрабатывает команды камеры.
+ * Полностью независим от версий Minecraft благодаря MinecraftBridge.
  */
 public class AiOperatorClient implements ClientModInitializer {
 
@@ -15,6 +19,7 @@ public class AiOperatorClient implements ClientModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private static OperatorWebSocketClient wsClient;
+    private static ScheduledExecutorService ticker;
 
     @Override
     public void onInitializeClient() {
@@ -25,12 +30,22 @@ public class AiOperatorClient implements ClientModInitializer {
         wsClient = new OperatorWebSocketClient(config);
         wsClient.connect();
 
-        // Каждый тик клиента — отправляем телеметрию и обрабатываем команды
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (wsClient != null) {
-                wsClient.onTick(client);
-            }
+        // Запускаем таймер тиков (20 раз в секунду, каждые 50мс)
+        // Не зависит от Fabric API и версий маппингов Minecraft!
+        ticker = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "ai-operator-ticker");
+            t.setDaemon(true);
+            return t;
         });
+        ticker.scheduleAtFixedRate(() -> {
+            try {
+                if (wsClient != null) {
+                    wsClient.onTick();
+                }
+            } catch (Throwable t) {
+                LOGGER.debug("[AI Operator] Ошибка в цикле тика: {}", t.getMessage());
+            }
+        }, 100, 50, TimeUnit.MILLISECONDS);
 
         LOGGER.info("[AI Operator] Инициализация завершена. Core: {}", config.getCoreUrl());
     }

@@ -2,21 +2,19 @@ package dev.aioperator.obvilion;
 
 import com.google.gson.JsonObject;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.Entity;
 
 /**
  * CameraController — обрабатывает все команды движения камеры.
+ * Полностью независим от версий Minecraft (нет прямых импортов Minecraft).
  *
  * Использует Freecam API (если мод установлен) для плавного перемещения.
- * Если Freecam не установлен — работает через стандартный spectator режим.
  *
- * Поддерживаемые команды (из PROTOCOL.md):
+ * Поддерживаемые команды:
  *  - MOVE: плавное перемещение в точку за duration секунд
  *  - ORBIT: вращение вокруг центральной точки
  *  - SET_FOV: изменение угла обзора
  *  - SET_SHADER: смена шейдерпака через Iris API
- *  - EMERGENCY_STOP: мгновенная остановка в безопасную позицию
+ *  - EMERGENCY_STOP: мгновенная остановка
  */
 public class CameraController {
 
@@ -43,7 +41,7 @@ public class CameraController {
     private double orbitHeight;
     private double orbitAngle = 0.0;
 
-    // Текущая позиция и ориентация (в spectator / freecam пространстве)
+    // Текущая позиция и ориентация
     private double currentX, currentY, currentZ;
     private float currentPitch, currentYaw;
 
@@ -58,13 +56,14 @@ public class CameraController {
         float duration = packet.has("duration") ? packet.get("duration").getAsFloat() : 2.0f;
         smoothing = packet.has("smoothing") ? packet.get("smoothing").getAsString() : "cinematic";
 
-        MinecraftClient mc = MinecraftClient.getInstance();
-        if (startX == 0 && startY == 0 && startZ == 0 && mc.player != null) {
-            currentX = mc.player.getX();
-            currentY = mc.player.getY();
-            currentZ = mc.player.getZ();
-            currentPitch = mc.player.getPitch();
-            currentYaw = mc.player.getYaw();
+        if (startX == 0 && startY == 0 && startZ == 0) {
+            double[] playerPos = MinecraftBridge.getPlayerPos();
+            float[] playerRot = MinecraftBridge.getPlayerRot();
+            currentX = playerPos[0];
+            currentY = playerPos[1];
+            currentZ = playerPos[2];
+            currentPitch = playerRot[0];
+            currentYaw = playerRot[1];
         }
 
         startX = currentX; startY = currentY; startZ = currentZ;
@@ -81,7 +80,6 @@ public class CameraController {
     public void handleOrbit(JsonObject packet) {
         JsonObject center = packet.getAsJsonObject("center");
         if (center == null && packet.has("center")) {
-            // center может быть массивом [x, y, z]
             var arr = packet.getAsJsonArray("center");
             orbitCenterX = arr.get(0).getAsDouble();
             orbitCenterY = arr.get(1).getAsDouble();
@@ -95,7 +93,6 @@ public class CameraController {
         orbitSpeed  = packet.has("speed")  ? packet.get("speed").getAsDouble()  : 15.0;
         orbitHeight = packet.has("height") ? packet.get("height").getAsDouble() : 5.0;
 
-        // Вычисляем начальный угол из текущей позиции
         orbitAngle = Math.toDegrees(Math.atan2(currentZ - orbitCenterZ, currentX - orbitCenterX));
         isOrbiting = true;
         isMoving = false;
@@ -106,22 +103,15 @@ public class CameraController {
 
     public void handleSetFov(JsonObject packet) {
         float fov = packet.get("fov").getAsFloat();
-        // Применяем FOV через Minecraft options (thread-safe через schedule)
-        MinecraftClient.getInstance().execute(() -> {
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client.options != null) {
-                client.options.getFov().setValue((int) fov);
-                AiOperatorClient.LOGGER.info("[Camera] SET_FOV → {}°", fov);
-            }
-        });
+        MinecraftBridge.setFov((int) fov);
+        AiOperatorClient.LOGGER.info("[Camera] SET_FOV → {}°", fov);
     }
 
     public void handleSetShader(JsonObject packet) {
         String shaderpack = packet.has("shaderpack") ? packet.get("shaderpack").getAsString() : "none";
         String profile    = packet.has("profile")    ? packet.get("profile").getAsString()    : "Medium";
 
-        // Iris API — вызываем через reflection чтобы не требовать Iris как зависимость
-        MinecraftClient.getInstance().execute(() -> {
+        MinecraftBridge.execute(() -> {
             try {
                 Class<?> irisApi = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
                 Object instance = irisApi.getMethod("getInstance").invoke(null);
@@ -152,15 +142,7 @@ public class CameraController {
             currentPitch = safe.get("pitch").getAsFloat();
             currentYaw   = safe.get("yaw").getAsFloat();
 
-            // Телепортируем spectator-игрока в безопасную позицию
-            MinecraftClient.getInstance().execute(() -> {
-                MinecraftClient client = MinecraftClient.getInstance();
-                if (client.player != null) {
-                    client.player.setPosition(currentX, currentY, currentZ);
-                    client.player.setPitch(currentPitch);
-                    client.player.setYaw(currentYaw);
-                }
-            });
+            applyPosition();
         }
 
         AiOperatorClient.LOGGER.warn("[Camera] 🚨 EMERGENCY STOP! Камера остановлена.");
@@ -169,7 +151,6 @@ public class CameraController {
     public void startRecording() {
         isRecording = true;
         AiOperatorClient.LOGGER.info("[Camera] 🔴 Запись начата.");
-        // TODO: интеграция с ReplayMod или FFMPEG capture
     }
 
     public void stopRecording() {
@@ -177,23 +158,22 @@ public class CameraController {
         AiOperatorClient.LOGGER.info("[Camera] ⬛ Запись остановлена.");
     }
 
-    // ─── Tick (вызывается каждый игровой тик) ─────────────────────────────────
+    // ─── Tick ──────────────────────────────────────────────────────────────────
 
-    public void tick(MinecraftClient client) {
-        if (client.player == null) return;
+    public void tick() {
+        if (!MinecraftBridge.isPlayerInWorld()) return;
 
         if (isMoving) {
-            tickMove(client);
+            tickMove();
         } else if (isOrbiting) {
-            tickOrbit(client);
+            tickOrbit();
         }
     }
 
-    private void tickMove(MinecraftClient client) {
+    private void tickMove() {
         moveElapsedTicks++;
         float t = Math.min(moveElapsedTicks / moveDurationTicks, 1.0f);
 
-        // Функция сглаживания
         float smoothT = switch (smoothing) {
             case "cinematic" -> easeInOutCubic(t);
             case "linear"    -> t;
@@ -208,7 +188,7 @@ public class CameraController {
         currentPitch = (float) lerp(startPitch, targetPitch, smoothT);
         currentYaw   = lerpAngle(startYaw, targetYaw, smoothT);
 
-        applyPositionToPlayer(client);
+        applyPosition();
 
         if (t >= 1.0f) {
             isMoving = false;
@@ -216,8 +196,7 @@ public class CameraController {
         }
     }
 
-    private void tickOrbit(MinecraftClient client) {
-        // Угол растёт на speed градусов в секунду (1 тик = 1/20 сек)
+    private void tickOrbit() {
         orbitAngle += orbitSpeed / 20.0;
         if (orbitAngle >= 360.0) orbitAngle -= 360.0;
 
@@ -226,37 +205,27 @@ public class CameraController {
         currentY = orbitCenterY + orbitHeight;
         currentZ = orbitCenterZ + orbitRadius * Math.sin(radAngle);
 
-        // Всегда смотрим в центр орбиты
         double dx = orbitCenterX - currentX;
         double dz = orbitCenterZ - currentZ;
         currentYaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         double dist = Math.sqrt(dx * dx + dz * dz);
         currentPitch = (float) -Math.toDegrees(Math.atan2(orbitHeight, dist));
 
-        applyPositionToPlayer(client);
+        applyPosition();
     }
 
-    private void applyPositionToPlayer(MinecraftClient client) {
-        if (client.player == null) return;
-
-        // Пробуем управлять через Freecam мод (net.xolt.freecam)
-        if (tryApplyViaFreecam(client, currentX, currentY, currentZ, currentPitch, currentYaw)) {
-            return;
-        }
-
-        // Fallback: двигаем игрока напрямую (spectator режим)
-        client.player.setPosition(currentX, currentY, currentZ);
-        client.player.setPitch(currentPitch);
-        client.player.setYaw(currentYaw);
+    private void applyPosition() {
+        MinecraftBridge.execute(() -> {
+            tryApplyViaFreecam(currentX, currentY, currentZ, currentPitch, currentYaw);
+        });
     }
 
     /**
      * Управляет FreeCamera через reflection API Freecam мода.
      * Freecam 1.5.x: net.xolt.freecam.Freecam + FreecamPosition
      */
-    private boolean tryApplyViaFreecam(MinecraftClient client, double x, double y, double z, float pitch, float yaw) {
+    private boolean tryApplyViaFreecam(double x, double y, double z, float pitch, float yaw) {
         try {
-            // Проверяем что Freecam загружен
             if (!FabricLoader.getInstance().isModLoaded("freecam")) return false;
 
             Class<?> freecamClass = Class.forName("net.xolt.freecam.Freecam");
@@ -280,10 +249,11 @@ public class CameraController {
 
             // 3. Создаём FreecamPosition и передаём в Freecam.moveToPosition
             Class<?> posClass = Class.forName("net.xolt.freecam.util.FreecamPosition");
+            Object player = MinecraftBridge.getPlayer();
             Object posObj = null;
             for (var ctor : posClass.getConstructors()) {
                 if (ctor.getParameterCount() == 1) {
-                    posObj = ctor.newInstance(client.player);
+                    posObj = ctor.newInstance(player);
                     break;
                 }
             }
@@ -300,29 +270,30 @@ public class CameraController {
                 return true;
             }
         } catch (ClassNotFoundException e) {
-            // Freecam не установлен — тихо игнорируем, используем fallback
+            // Freecam не установлен
         } catch (Exception e) {
             AiOperatorClient.LOGGER.debug("[Camera] Freecam reflection: {}", e.getMessage());
         }
         return false;
     }
 
-
     // ─── Геттеры ───────────────────────────────────────────────────────────────
 
-    public double[] getCurrentPosition(MinecraftClient client) {
-        if (client.player != null && !isMoving && !isOrbiting && !freecamActive) {
-            currentX = client.player.getX();
-            currentY = client.player.getY();
-            currentZ = client.player.getZ();
+    public double[] getCurrentPosition() {
+        if (!isMoving && !isOrbiting && !freecamActive) {
+            double[] p = MinecraftBridge.getPlayerPos();
+            currentX = p[0];
+            currentY = p[1];
+            currentZ = p[2];
         }
         return new double[]{currentX, currentY, currentZ};
     }
 
-    public float[] getCurrentRotation(MinecraftClient client) {
-        if (client.player != null && !isMoving && !isOrbiting && !freecamActive) {
-            currentPitch = client.player.getPitch();
-            currentYaw   = client.player.getYaw();
+    public float[] getCurrentRotation() {
+        if (!isMoving && !isOrbiting && !freecamActive) {
+            float[] r = MinecraftBridge.getPlayerRot();
+            currentPitch = r[0];
+            currentYaw   = r[1];
         }
         return new float[]{currentPitch, currentYaw};
     }
@@ -337,7 +308,6 @@ public class CameraController {
         return a + (b - a) * t;
     }
 
-    /** Интерполяция углов по кратчайшему пути (учёт перехода 360→0°) */
     private static float lerpAngle(float a, float b, float t) {
         float diff = b - a;
         while (diff >  180f) diff -= 360f;
