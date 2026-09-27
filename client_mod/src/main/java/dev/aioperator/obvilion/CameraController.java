@@ -58,6 +58,15 @@ public class CameraController {
         float duration = packet.has("duration") ? packet.get("duration").getAsFloat() : 2.0f;
         smoothing = packet.has("smoothing") ? packet.get("smoothing").getAsString() : "cinematic";
 
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (startX == 0 && startY == 0 && startZ == 0 && mc.player != null) {
+            currentX = mc.player.getX();
+            currentY = mc.player.getY();
+            currentZ = mc.player.getZ();
+            currentPitch = mc.player.getPitch();
+            currentYaw = mc.player.getYaw();
+        }
+
         startX = currentX; startY = currentY; startZ = currentZ;
         startPitch = currentPitch; startYaw = currentYaw;
 
@@ -231,7 +240,7 @@ public class CameraController {
         if (client.player == null) return;
 
         // Пробуем управлять через Freecam мод (net.xolt.freecam)
-        if (tryApplyViaFreecam(currentX, currentY, currentZ, currentPitch, currentYaw)) {
+        if (tryApplyViaFreecam(client, currentX, currentY, currentZ, currentPitch, currentYaw)) {
             return;
         }
 
@@ -243,37 +252,57 @@ public class CameraController {
 
     /**
      * Управляет FreeCamera через reflection API Freecam мода.
-     * Freecam 1.5.x: net.xolt.freecam.Freecam + FreeCamera entity
+     * Freecam 1.5.x: net.xolt.freecam.Freecam + FreecamPosition
      */
-    private boolean tryApplyViaFreecam(double x, double y, double z, float pitch, float yaw) {
+    private boolean tryApplyViaFreecam(MinecraftClient client, double x, double y, double z, float pitch, float yaw) {
         try {
             // Проверяем что Freecam загружен
             if (!FabricLoader.getInstance().isModLoaded("freecam")) return false;
 
-            // Активируем Freecam если ещё не активен
             Class<?> freecamClass = Class.forName("net.xolt.freecam.Freecam");
-            Object freecamInstance = freecamClass.getMethod("getInstance").invoke(null);
 
-            boolean isActive = (boolean) freecamClass.getMethod("isEnabled").invoke(freecamInstance);
+            // 1. Активируем Freecam если ещё не активен (статический метод isEnabled())
+            boolean isActive = (boolean) freecamClass.getMethod("isEnabled").invoke(null);
             if (!isActive) {
-                // Включаем Freecam программно
-                freecamClass.getMethod("toggle").invoke(freecamInstance);
+                freecamClass.getMethod("toggle").invoke(null);
                 freecamActive = true;
                 AiOperatorClient.LOGGER.info("[Camera] Freecam активирован автоматически!");
+            } else {
+                freecamActive = true;
             }
 
-            // Получаем FreeCamera entity и двигаем её
-            Entity freeCamera = (Entity) freecamClass.getMethod("getFreeCamera").invoke(freecamInstance);
-            if (freeCamera != null) {
-                freeCamera.setPosition(x, y, z);
-                freeCamera.setPitch(pitch);
-                freeCamera.setYaw(yaw);
+            // 2. Убеждаемся, что управление остаётся у игрока (чтобы игрок мог ходить/бегать/играть)
+            boolean isPlayerControl = (boolean) freecamClass.getMethod("isPlayerControlEnabled").invoke(null);
+            if (!isPlayerControl) {
+                freecamClass.getMethod("switchControls").invoke(null);
+                AiOperatorClient.LOGGER.info("[Camera] Управление переключено на игрока (камера автономна)!");
+            }
+
+            // 3. Создаём FreecamPosition и передаём в Freecam.moveToPosition
+            Class<?> posClass = Class.forName("net.xolt.freecam.util.FreecamPosition");
+            Object posObj = null;
+            for (var ctor : posClass.getConstructors()) {
+                if (ctor.getParameterCount() == 1) {
+                    posObj = ctor.newInstance(client.player);
+                    break;
+                }
+            }
+
+            if (posObj != null) {
+                posClass.getField("x").setDouble(posObj, x);
+                posClass.getField("y").setDouble(posObj, y);
+                posClass.getField("z").setDouble(posObj, z);
+                posClass.getField("pitch").setFloat(posObj, pitch);
+                posClass.getField("yaw").setFloat(posObj, yaw);
+
+                var moveToPosMethod = freecamClass.getMethod("moveToPosition", posClass);
+                moveToPosMethod.invoke(null, posObj);
                 return true;
             }
         } catch (ClassNotFoundException e) {
             // Freecam не установлен — тихо игнорируем, используем fallback
         } catch (Exception e) {
-            AiOperatorClient.LOGGER.debug("[Camera] Freecam API error: {}", e.getMessage());
+            AiOperatorClient.LOGGER.debug("[Camera] Freecam reflection: {}", e.getMessage());
         }
         return false;
     }
@@ -282,7 +311,7 @@ public class CameraController {
     // ─── Геттеры ───────────────────────────────────────────────────────────────
 
     public double[] getCurrentPosition(MinecraftClient client) {
-        if (client.player != null && !isMoving && !isOrbiting) {
+        if (client.player != null && !isMoving && !isOrbiting && !freecamActive) {
             currentX = client.player.getX();
             currentY = client.player.getY();
             currentZ = client.player.getZ();
@@ -291,7 +320,7 @@ public class CameraController {
     }
 
     public float[] getCurrentRotation(MinecraftClient client) {
-        if (client.player != null && !isMoving && !isOrbiting) {
+        if (client.player != null && !isMoving && !isOrbiting && !freecamActive) {
             currentPitch = client.player.getPitch();
             currentYaw   = client.player.getYaw();
         }

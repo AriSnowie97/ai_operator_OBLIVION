@@ -31,12 +31,6 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:0.16.10"
     modImplementation "net.fabricmc.fabric-api:fabric-api:0.114.0+1.21.4"
 
-    // OkHttp для WebSocket — шустрее чем Java встроенный
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    include 'com.squareup.okhttp3:okhttp:4.12.0'
-    implementation 'com.squareup.okio:okio:3.9.0'
-    include 'com.squareup.okio:okio:3.9.0'
-
     // Gson для JSON (уже есть в Minecraft, но явно подключаем)
     implementation 'com.google.code.gson:gson:2.10.1'
 }

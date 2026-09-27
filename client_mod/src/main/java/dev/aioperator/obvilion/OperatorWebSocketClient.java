@@ -3,31 +3,34 @@ package dev.aioperator.obvilion;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import net.minecraft.client.MinecraftClient;
-import okhttp3.*;
-import org.jetbrains.annotations.NotNull;
 
-import java.util.concurrent.TimeUnit;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.WebSocket;
+import java.time.Duration;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * WebSocket-клиент для связи с AI Operator Core.
- * Протокол описан в PROTOCOL.md
+ * Использует стандартный java.net.http.WebSocket (встроен в Java 21, без внешних зависимостей).
  *
  * Возможности:
  *  - Автоматическое переподключение каждые 3 секунды при разрыве
  *  - Обработка команд: MOVE, ORBIT, SET_FOV, SET_SHADER, EMERGENCY_STOP
  *  - Отправка телеметрии 20 раз в секунду (каждый тик)
  */
-public class OperatorWebSocketClient extends WebSocketListener {
+public class OperatorWebSocketClient implements WebSocket.Listener {
 
     private final OperatorConfig config;
     private final Gson gson = new Gson();
-    private final OkHttpClient httpClient;
+    private final HttpClient httpClient;
     private final AtomicBoolean connected = new AtomicBoolean(false);
     private final AtomicBoolean reconnecting = new AtomicBoolean(false);
 
     private WebSocket webSocket;
-    private CameraController cameraController;
+    private final CameraController cameraController;
+    private final StringBuilder messageBuffer = new StringBuilder();
 
     // Телеметрия отправляется раз в тик (20/сек), но не чаще раза в 50мс
     private long lastTelemetryMs = 0;
@@ -35,10 +38,8 @@ public class OperatorWebSocketClient extends WebSocketListener {
 
     public OperatorWebSocketClient(OperatorConfig config) {
         this.config = config;
-        this.httpClient = new OkHttpClient.Builder()
-                .readTimeout(0, TimeUnit.MILLISECONDS)   // Бесконечный таймаут для WS
-                .connectTimeout(5, TimeUnit.SECONDS)
-                .pingInterval(30, TimeUnit.SECONDS)      // Keep-alive пинги
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
                 .build();
         this.cameraController = new CameraController();
     }
@@ -48,34 +49,61 @@ public class OperatorWebSocketClient extends WebSocketListener {
         if (connected.get() || reconnecting.get()) return;
 
         AiOperatorClient.LOGGER.info("[AI Operator] Подключаемся к: {}", config.getCoreUrl());
-        Request request = new Request.Builder()
-                .url(config.getCoreUrl())
-                .addHeader("X-Mod-Version", "1.0.0")
-                .build();
-        webSocket = httpClient.newWebSocket(request, this);
+        try {
+            httpClient.newWebSocketBuilder()
+                    .header("X-Mod-Version", "1.0.0")
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .buildAsync(URI.create(config.getCoreUrl()), this)
+                    .thenAccept(ws -> {
+                        this.webSocket = ws;
+                    })
+                    .exceptionally(t -> {
+                        connected.set(false);
+                        AiOperatorClient.LOGGER.warn("[AI Operator] ❌ Ошибка подключения: {}. Повтор через 3 сек...", t.getMessage());
+                        scheduleReconnect();
+                        return null;
+                    });
+        } catch (Exception e) {
+            connected.set(false);
+            AiOperatorClient.LOGGER.error("[AI Operator] Ошибка создания сокета: {}", e.getMessage());
+            scheduleReconnect();
+        }
     }
 
     // ─── WebSocket Callbacks ───────────────────────────────────────────────────
 
     @Override
-    public void onOpen(@NotNull WebSocket webSocket, @NotNull Response response) {
+    public void onOpen(WebSocket webSocket) {
         this.webSocket = webSocket;
         connected.set(true);
         reconnecting.set(false);
         AiOperatorClient.LOGGER.info("[AI Operator] ✅ Подключено к Core! Готов к работе.");
 
-        // Отправляем приветственный пакет
+        // Приветственный пакет
         JsonObject hello = new JsonObject();
         hello.addProperty("type", "CLIENT_HELLO");
         hello.addProperty("mod_version", "1.0.0");
-        hello.addProperty("minecraft_version", "1.21.4");
+        hello.addProperty("minecraft_version", "26.1.2");
         sendJson(hello);
+
+        WebSocket.Listener.super.onOpen(webSocket);
     }
 
     @Override
-    public void onMessage(@NotNull WebSocket webSocket, @NotNull String text) {
+    public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
+        messageBuffer.append(data);
+        if (last) {
+            String text = messageBuffer.toString();
+            messageBuffer.setLength(0);
+            dispatchMessage(text);
+        }
+        return WebSocket.Listener.super.onText(webSocket, data, last);
+    }
+
+    private void dispatchMessage(String text) {
         try {
             JsonObject packet = gson.fromJson(text, JsonObject.class);
+            if (packet == null || !packet.has("type")) return;
             String type = packet.get("type").getAsString();
 
             AiOperatorClient.LOGGER.debug("[AI Operator] Получена команда: {}", type);
@@ -96,16 +124,17 @@ public class OperatorWebSocketClient extends WebSocketListener {
     }
 
     @Override
-    public void onFailure(@NotNull WebSocket webSocket, @NotNull Throwable t, Response response) {
+    public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
         connected.set(false);
-        AiOperatorClient.LOGGER.warn("[AI Operator] ❌ Соединение разорвано: {}. Переподключение через 3 сек...", t.getMessage());
+        AiOperatorClient.LOGGER.info("[AI Operator] Соединение закрыто ({}): {}. Переподключение...", statusCode, reason);
         scheduleReconnect();
+        return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
     }
 
     @Override
-    public void onClosed(@NotNull WebSocket webSocket, int code, @NotNull String reason) {
+    public void onError(WebSocket webSocket, Throwable error) {
         connected.set(false);
-        AiOperatorClient.LOGGER.info("[AI Operator] Соединение закрыто ({}): {}. Переподключение...", code, reason);
+        AiOperatorClient.LOGGER.warn("[AI Operator] ❌ Ошибка соединения: {}. Переподключение через 3 сек...", error.getMessage());
         scheduleReconnect();
     }
 
@@ -163,7 +192,7 @@ public class OperatorWebSocketClient extends WebSocketListener {
 
     private void sendJson(JsonObject obj) {
         if (webSocket != null && connected.get()) {
-            webSocket.send(gson.toJson(obj));
+            webSocket.sendText(gson.toJson(obj), true);
         }
     }
 
