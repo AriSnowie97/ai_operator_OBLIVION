@@ -105,20 +105,123 @@ public class CameraController {
     }
 
     public void handleReturnToPlayer() {
+        setPresetBehind();
+    }
+
+    public void setPresetBehind() {
         double[] p = MinecraftBridge.getPlayerPos();
         float[] r = MinecraftBridge.getPlayerRot();
-        targetX = p[0];
-        targetY = p[1] + 2.5;
-        targetZ = p[2] - 3.5;
-        targetPitch = 15f;
+        double yawRad = Math.toRadians(r[1]);
+        double lookX = -Math.sin(yawRad);
+        double lookZ = Math.cos(yawRad);
+
+        targetX = p[0] - lookX * 3.5;
+        targetY = p[1] + 2.0;
+        targetZ = p[2] - lookZ * 3.5;
+        targetPitch = 12f;
         targetYaw = r[1];
+        startMoveTransition(15f);
+        AiOperatorClient.LOGGER.info("[Camera] Пресет 'сзади': ({}, {}, {})", targetX, targetY, targetZ);
+    }
+
+    public void setPresetFront() {
+        double[] p = MinecraftBridge.getPlayerPos();
+        float[] r = MinecraftBridge.getPlayerRot();
+        double yawRad = Math.toRadians(r[1]);
+        double lookX = -Math.sin(yawRad);
+        double lookZ = Math.cos(yawRad);
+
+        targetX = p[0] + lookX * 3.5;
+        targetY = p[1] + 1.6;
+        targetZ = p[2] + lookZ * 3.5;
+        targetPitch = 5f;
+        targetYaw = (r[1] + 180f) % 360f;
+        startMoveTransition(15f);
+        AiOperatorClient.LOGGER.info("[Camera] Пресет 'спереди': ({}, {}, {})", targetX, targetY, targetZ);
+    }
+
+    public void setPresetSide(boolean rightSide) {
+        double[] p = MinecraftBridge.getPlayerPos();
+        float[] r = MinecraftBridge.getPlayerRot();
+        double yawRad = Math.toRadians(r[1]);
+        double perpX = rightSide ? Math.cos(yawRad) : -Math.cos(yawRad);
+        double perpZ = rightSide ? Math.sin(yawRad) : -Math.sin(yawRad);
+
+        targetX = p[0] + perpX * 3.5;
+        targetY = p[1] + 1.8;
+        targetZ = p[2] + perpZ * 3.5;
+        targetPitch = 8f;
+        targetYaw = rightSide ? (r[1] - 90f) : (r[1] + 90f);
+        startMoveTransition(15f);
+        AiOperatorClient.LOGGER.info("[Camera] Пресет 'сбоку': ({}, {}, {})", targetX, targetY, targetZ);
+    }
+
+    public void setPresetTop() {
+        double[] p = MinecraftBridge.getPlayerPos();
+        float[] r = MinecraftBridge.getPlayerRot();
+        double yawRad = Math.toRadians(r[1]);
+        double lookX = -Math.sin(yawRad);
+        double lookZ = Math.cos(yawRad);
+
+        targetX = p[0] - lookX * 4.0;
+        targetY = p[1] + 8.0;
+        targetZ = p[2] - lookZ * 4.0;
+        targetPitch = 45f;
+        targetYaw = r[1];
+        startMoveTransition(20f);
+        AiOperatorClient.LOGGER.info("[Camera] Пресет 'сверху': ({}, {}, {})", targetX, targetY, targetZ);
+    }
+
+    public void moveToPosition(double x, double y, double z, float pitch, float yaw, float durationSec) {
+        targetX = x;
+        targetY = y;
+        targetZ = z;
+        targetPitch = pitch;
+        targetYaw = yaw;
+        smoothing = "cinematic";
+        startMoveTransition(durationSec * 20f);
+        AiOperatorClient.LOGGER.info("[Camera] Перемещение к ({}, {}, {}) за {} сек", x, y, z, durationSec);
+    }
+
+    public void setPositionImmediate(double x, double y, double z, float pitch, float yaw) {
+        currentX = x;
+        currentY = y;
+        currentZ = z;
+        currentPitch = pitch;
+        currentYaw = yaw;
+        isMoving = false;
+        isOrbiting = false;
+        applyPosition();
+        AiOperatorClient.LOGGER.info("[Camera] Мгновенная позиция ({}, {}, {})", x, y, z);
+    }
+
+    private void startMoveTransition(float ticks) {
+        if (startX == 0 && startY == 0 && startZ == 0) {
+            double[] p = MinecraftBridge.getPlayerPos();
+            float[] r = MinecraftBridge.getPlayerRot();
+            currentX = p[0]; currentY = p[1]; currentZ = p[2];
+            currentPitch = r[0]; currentYaw = r[1];
+        }
         startX = currentX; startY = currentY; startZ = currentZ;
         startPitch = currentPitch; startYaw = currentYaw;
-        moveDurationTicks = 15f; // 0.75 сек
+        moveDurationTicks = Math.max(ticks, 1f);
         moveElapsedTicks = 0f;
         isMoving = true;
         isOrbiting = false;
-        AiOperatorClient.LOGGER.info("[Camera] Возврат к игроку ({}, {}, {})", targetX, targetY, targetZ);
+    }
+
+    public boolean togglePlayerControl() {
+        try {
+            if (!FabricLoader.getInstance().isModLoaded("freecam")) return false;
+            Class<?> freecamClass = Class.forName("net.xolt.freecam.Freecam");
+            if (!(boolean) freecamClass.getMethod("isEnabled").invoke(null)) {
+                freecamClass.getMethod("toggle").invoke(null);
+            }
+            freecamClass.getMethod("switchControls").invoke(null);
+            return (boolean) freecamClass.getMethod("isPlayerControlEnabled").invoke(null);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     public void handleSetFov(JsonObject packet) {
