@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "ai-operator-client",
+  "version": "${version}",
+  "name": "AI Operator Client",
+  "description": "Fabric mod for AI camera operator — connects to the AI Operator Core via WebSocket and provides autonomous camera control for cinematic content creation.",
+  "authors": ["AriSnowie97"],
+  "contact": {
+    "sources": "https://github.com/AriSnowie97/ai_operator_for_OBLIVION"
+  },
+  "license": "MIT",
+  "icon": "assets/aioperator/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.aioperator.obvilion.AiOperatorClient"
+    ]
+  },
+  "mixins": [
+    "ai-operator.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "fabric-api": "*",
+    "minecraft": ">=1.21"
+  }
+}

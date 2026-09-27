@@ -1,0 +1,46 @@
+{
+  "safe_spawn": {
+    "name": "safe_spawn",
+    "description": "Safe emergency recovery position",
+    "x": 0.0,
+    "y": 100.0,
+    "z": 0.0,
+    "pitch": 25.0,
+    "yaw": 0.0,
+    "roll": 0.0,
+    "fov": 70.0
+  },
+  "spawn_aerial": {
+    "name": "spawn_aerial",
+    "description": "High angle cinematic view over main spawn area",
+    "x": 45.5,
+    "y": 140.0,
+    "z": -80.2,
+    "pitch": 35.0,
+    "yaw": 145.0,
+    "roll": 0.0,
+    "fov": 65.0
+  },
+  "pvp_arena_corner": {
+    "name": "pvp_arena_corner",
+    "description": "Dynamic low-angle view of the arena",
+    "x": 210.0,
+    "y": 72.0,
+    "z": 340.0,
+    "pitch": 10.0,
+    "yaw": -45.0,
+    "roll": 0.0,
+    "fov": 80.0
+  },
+  "sunset_vista": {
+    "name": "sunset_vista",
+    "description": "Scenic mountain vista overlooking the horizon",
+    "x": -512.0,
+    "y": 185.0,
+    "z": 240.0,
+    "pitch": 5.0,
+    "yaw": 270.0,
+    "roll": 0.0,
+    "fov": 55.0
+  }
+}

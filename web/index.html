@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minecraft AI Camera Operator | OBLIVION</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <div id="emergency-banner" class="emergency-banner">
+    <p>⚠️ EMERGENCY STOP ACTIVATED: Camera locked at Safe Spawn. All movement commands blocked.</p>
+    <button id="btn-emergency-reset" class="btn-reset-emergency">Admin Unlock</button>
+  </div>
+
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-9h10v2H7z"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>AI CAMERA OPERATOR</h1>
+        <span>OBLIVION · CINEMATIC ENGINE</span>
+      </div>
+    </div>
+
+    <div class="header-status">
+      <div id="badge-client" class="status-badge offline">
+        <span class="status-dot"></span>
+        <span id="label-client">GPU Client Disconnected</span>
+      </div>
+      <div id="badge-shader" class="status-badge">
+        <span>🎨 Iris: <strong id="val-shader">Complementary</strong></span>
+      </div>
+      <div id="badge-recording" class="status-badge" style="display: none;">
+        <span class="status-dot"></span>
+        <span>REC <strong id="val-rec-timer">00:00</strong></span>
+      </div>
+      <button id="btn-emergency-stop" class="btn-emergency">
+        🛑 СТОП-КРАН
+      </button>
+    </div>
+  </header>
+
+  <main class="dashboard-grid">
+
+    <div class="viewport-column">
+      <div class="viewport-card">
+        <div class="card-header">
+          <h2>Virtual Camera Viewport & Horizon Radar</h2>
+          <div id="badge-mode" class="status-badge">
+            <span>MODE: <strong id="val-mode">FREECAM</strong></span>
+          </div>
+        </div>
+
+        <div class="hud-viewport-container">
+          <canvas id="viewport-canvas"></canvas>
+
+          <div class="hud-overlay">
+            <div id="rule-of-thirds" class="rule-of-thirds">
+              <div class="grid-cell"></div>
+              <div class="grid-cell"></div>
+              <div class="grid-cell"></div>
+              <div class="grid-cell"></div>
+              <div class="grid-cell"></div>
+              <div class="grid-cell"></div>
+              <div class="grid-cell"></div>
+              <div class="grid-cell"></div>
+              <div class="grid-cell"></div>
+            </div>
+            <div id="safe-zone" class="safe-zone"></div>
+          </div>
+        </div>
+
+        <div class="viewport-controls-bar">
+          <div class="toggle-group">
+            <button id="toggle-grid" class="toggle-btn active">Сетка третей</button>
+            <button id="toggle-safe" class="toggle-btn active">Safe Zone</button>
+          </div>
+          <div class="toggle-group">
+            <button id="btn-record-toggle" class="toggle-btn">⏺ Начать запись</button>
+            <button id="btn-orbit-current" class="toggle-btn">🌀 Орбита вокруг точки</button>
+          </div>
+        </div>
+
+        <div class="telemetry-row">
+          <div class="telem-item">
+            <span class="telem-label">Position X</span>
+            <span id="val-x" class="telem-val cyan">0.0</span>
+          </div>
+          <div class="telem-item">
+            <span class="telem-label">Position Y</span>
+            <span id="val-y" class="telem-val cyan">100.0</span>
+          </div>
+          <div class="telem-item">
+            <span class="telem-label">Position Z</span>
+            <span id="val-z" class="telem-val cyan">0.0</span>
+          </div>
+          <div class="telem-item">
+            <span class="telem-label">Pitch</span>
+            <span id="val-pitch" class="telem-val">15.0°</span>
+          </div>
+          <div class="telem-item">
+            <span class="telem-label">Yaw</span>
+            <span id="val-yaw" class="telem-val">0.0°</span>
+          </div>
+          <div class="telem-item">
+            <span class="telem-label">Roll</span>
+            <span id="val-roll" class="telem-val">0.0°</span>
+          </div>
+          <div class="telem-item">
+            <span class="telem-label">FOV</span>
+            <span id="val-fov" class="telem-val purple">70.0°</span>
+          </div>
+          <div class="telem-item">
+            <span class="telem-label">Client FPS</span>
+            <span id="val-fps" class="telem-val">60</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls-column">
+
+      <div class="panel-card">
+        <h3>
+          <span>Пресеты и Waypoints</span>
+          <button id="btn-save-preset" class="toggle-btn">+ Сохранить текущий</button>
+        </h3>
+        <div id="presets-container" class="presets-grid">
+        </div>
+      </div>
+
+      <div class="panel-card">
+        <h3>Настройки кадра</h3>
+        <div class="slider-group">
+          <div class="slider-row">
+            <div class="slider-labels">
+              <span>Угол обзора (FOV / Zoom)</span>
+              <span id="label-slider-fov">70°</span>
+            </div>
+            <input type="range" id="slider-fov" min="20" max="110" value="70">
+          </div>
+          <div class="slider-row">
+            <div class="slider-labels">
+              <span>Наклон камеры (Roll)</span>
+              <span id="label-slider-roll">0°</span>
+            </div>
+            <input type="range" id="slider-roll" min="-45" max="45" value="0">
+          </div>
+          <div class="slider-row">
+            <div class="slider-labels">
+              <span>Длительность сглаживания (сек)</span>
+              <span id="label-slider-duration">1.5s</span>
+            </div>
+            <input type="range" id="slider-duration" min="0.2" max="5.0" step="0.1" value="1.5">
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-card">
+        <h3>
+          <span>Журнал действий (Audit Log)</span>
+          <span style="font-size: 0.7rem; color: var(--accent-cyan);">Хранение 7+ дней</span>
+        </h3>
+        <div id="audit-logs" class="audit-list">
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

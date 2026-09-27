@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Секреты — никогда не пушить!
+.env
+*.env
+configs/secrets.yaml
+
+# Данные и логи
+data/audit_logs/
+data/*.db
+*.log
+
+# Fabric мод — билд артефакты
+client_mod/build/
+client_mod/.gradle/
+client_mod/gradle-dist/
+client_mod/run/
+client_mod/.loom/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
