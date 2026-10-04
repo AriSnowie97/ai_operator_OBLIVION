@@ -50,7 +50,7 @@ if exist "%MOD_JAR%" (
 echo.
 echo ============================================
 echo   Готово! Запускай OBVILION в TLauncher.
-echo   Мод подключится к: ws://localhost:8765/ws/client
+echo   Мод подключится к: ws://localhost:8000/ws/client
 echo   Для смены адреса: .minecraftx\instances\OBVILION\config\aioperator.properties
 echo ============================================
 pause

@@ -1,3 +1,4 @@
+import sys
 import asyncio
 import json
 import math
@@ -9,6 +10,7 @@ from datetime import datetime, timezone
 from core.config import config
 from core.models import CameraPosition, CameraStatus, CameraMode, Preset, UserRole
 from core.policy_engine import policy_engine
+from core.obs_client import obs_client
 
 class CameraController:
     def __init__(self):
@@ -22,10 +24,14 @@ class CameraController:
         self.recording_start_time: Optional[float] = None
         self.orbit_task: Optional[asyncio.Task] = None
         self.interpolation_task: Optional[asyncio.Task] = None
+        
+        # Subscribe to OBS Studio record state changes
+        obs_client.on_record_state_change = self._on_obs_record_state
 
     def get_status(self) -> CameraStatus:
         self.status.emergency_lock = policy_engine.is_locked()
         self.status.client_connected = self.client_socket is not None
+        self.status.obs_connected = obs_client.is_connected
         if self.status.is_recording and self.recording_start_time:
             self.status.recording_time_sec = round(time.time() - self.recording_start_time, 1)
         else:
@@ -33,16 +39,26 @@ class CameraController:
         self.status.timestamp = datetime.now(timezone.utc).isoformat()
         return self.status
 
+    async def _on_obs_record_state(self, active: bool):
+        if active and not self.status.is_recording:
+            self.status.is_recording = True
+            self.recording_start_time = time.time()
+            await self.send_to_client({"type": "START_RECORDING"})
+            await self.broadcast_telemetry()
+        elif not active and self.status.is_recording:
+            self.status.is_recording = False
+            self.recording_start_time = None
+            await self.send_to_client({"type": "STOP_RECORDING"})
+            await self.broadcast_telemetry()
+
     async def register_client(self, websocket: WebSocket):
         self.client_socket = websocket
         self.status.client_connected = True
-        print("[CameraController] Minecraft GPU client connected via WebSocket.")
-
+        print("[CameraController] Minecraft GPU client connected via WebSocket.", file=sys.stderr)
     async def unregister_client(self):
         self.client_socket = None
         self.status.client_connected = False
-        print("[CameraController] Minecraft GPU client disconnected.")
-
+        print("[CameraController] Minecraft GPU client disconnected.", file=sys.stderr)
     async def register_telemetry_listener(self, websocket: WebSocket):
         self.telemetry_listeners.add(websocket)
 
@@ -67,8 +83,7 @@ class CameraController:
             try:
                 await self.client_socket.send_text(json.dumps(message))
             except Exception as e:
-                print(f"[CameraController] Failed to dispatch packet to Minecraft client: {e}")
-
+                print(f"[CameraController] Failed to dispatch packet to Minecraft client: {e}", file=sys.stderr)
     async def _interpolate_to(self, target_pos: CameraPosition, duration: float):
         start_pos = self.status.position.model_copy()
         steps = max(1, int(duration * 30))
@@ -315,8 +330,12 @@ class CameraController:
         self.status.is_recording = True
         self.recording_start_time = time.time()
         await self.send_to_client({"type": "START_RECORDING"})
+        
+        obs_res = await obs_client.start_recording()
+        obs_detail = f" (OBS: {obs_res.get('message', '')})" if obs_client.enabled else ""
+
         await self.broadcast_telemetry()
-        return {"success": True, "message": "Recording started"}
+        return {"success": True, "message": f"Recording started{obs_detail}"}
 
     async def stop_recording(self, caller_role: UserRole = UserRole.STREAMER, caller_id: str = "system") -> Dict[str, Any]:
         ok, msg, _ = await policy_engine.validate_action(caller_role, caller_id, "stop_recording", {})
@@ -327,8 +346,12 @@ class CameraController:
         duration = self.status.recording_time_sec
         self.recording_start_time = None
         await self.send_to_client({"type": "STOP_RECORDING"})
+        
+        obs_res = await obs_client.stop_recording()
+        obs_detail = f" (OBS: {obs_res.get('message', '')})" if obs_client.enabled else ""
+
         await self.broadcast_telemetry()
-        return {"success": True, "message": f"Recording stopped. Duration: {duration}s"}
+        return {"success": True, "message": f"Recording stopped. Duration: {duration}s{obs_detail}"}
 
     async def set_shader(
         self,

@@ -33,6 +33,7 @@ class CameraStatus(BaseModel):
     active_preset: Optional[str] = None
     active_shader: Optional[str] = "ComplementaryReimagined"
     client_connected: bool = False
+    obs_connected: bool = False
     emergency_lock: bool = False
     fps: float = 60.0
     ping_ms: float = 5.0

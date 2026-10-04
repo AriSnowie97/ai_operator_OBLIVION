@@ -17,13 +17,7 @@ repositories {
     mavenCentral()
 }
 
-loom {
-    mods {
-        'ai-operator-client' {
-            sourceSet sourceSets.main
-        }
-    }
-}
+
 
 dependencies {
     minecraft "com.mojang:minecraft:1.21.4"
@@ -50,9 +44,12 @@ java {
 }
 
 jar {
-    from('LICENSE') {
-        rename { "${it}_${project.base.archivesName.get()}" }
-    }
+    archiveClassifier = ''
+    destinationDirectory = layout.buildDirectory.dir('libs')
+}
+
+remapJar {
+    enabled = false
 }
 
 tasks.withType(JavaCompile).configureEach {

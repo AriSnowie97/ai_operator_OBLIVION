@@ -15,6 +15,7 @@ from core.models import UserRole, CameraStatus
 from core.camera_controller import camera_controller
 from core.policy_engine import policy_engine
 from core.audit_logger import audit_logger
+from core.obs_client import obs_client
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
@@ -22,8 +23,10 @@ WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 async def lifespan(app: FastAPI):
     await audit_logger.init_db()
     await audit_logger.prune_old_logs(days_retention=7)
-    print(f"[Core Server] Initialized database and loaded {len(config.presets)} presets, {len(config.blacklist_zones)} blacklist zones.")
+    obs_client.start_background_loop()
+    print(f"[Core Server] Initialized database, OBS client loop, and loaded {len(config.presets)} presets, {len(config.blacklist_zones)} blacklist zones.")
     yield
+    obs_client.close()
     print("[Core Server] Shutting down.")
 
 app = FastAPI(

@@ -15,7 +15,7 @@ import java.util.Properties;
  */
 public class OperatorConfig {
 
-    private static final String DEFAULT_URL = "ws://localhost:8765/ws/client";
+    private static final String DEFAULT_URL = "ws://localhost:8000/ws/client";
     private static final String CONFIG_FILENAME = "aioperator.properties";
 
     private final String coreUrl;
@@ -60,7 +60,7 @@ public class OperatorConfig {
         String defaultContent = """
                 # AI Operator Client — конфигурация
                 # Адрес Core-сервера (ws:// или wss://)
-                core.url=ws://localhost:8765/ws/client
+                core.url=ws://localhost:8000/ws/client
                 
                 # Токен аутентификации (опционально)
                 core.token=

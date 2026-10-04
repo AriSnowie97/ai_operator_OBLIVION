@@ -73,6 +73,7 @@ async def run_tests():
     print(f"[MCPServer] All {len(required_tools)} required MCP tools registered and validated!")
 
     print("\nALL CORE & MCP TESTS PASSED SUCCESSFULLY!")
+    await asyncio.sleep(0.1)
 
 if __name__ == "__main__":
     asyncio.run(run_tests())

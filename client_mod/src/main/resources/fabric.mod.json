@@ -16,9 +16,7 @@
       "dev.aioperator.obvilion.AiOperatorClient"
     ]
   },
-  "mixins": [
-    "ai-operator.mixins.json"
-  ],
+
   "depends": {
     "fabricloader": ">=0.15.0",
     "fabric-api": "*",

@@ -142,6 +142,18 @@ function updateTelemetryUI(status) {
     clientLabel.textContent = 'GPU Client Disconnected';
   }
 
+  const obsBadge = document.getElementById('badge-obs');
+  const obsLabel = document.getElementById('label-obs');
+  if (obsBadge && obsLabel) {
+    if (status.obs_connected) {
+      obsBadge.className = 'status-badge online';
+      obsLabel.textContent = 'OBS Studio Online';
+    } else {
+      obsBadge.className = 'status-badge offline';
+      obsLabel.textContent = 'OBS Studio Offline';
+    }
+  }
+
   document.getElementById('val-shader').textContent = status.active_shader || 'None';
   document.getElementById('val-mode').textContent = (status.mode || 'FREECAM').toUpperCase();
 

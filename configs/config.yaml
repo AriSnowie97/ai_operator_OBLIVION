@@ -43,7 +43,7 @@ safety:
   max_instant_jump_distance: 250.0  # Cooldown or deny if leap is too massive without smooth glide
 
 obs:
-  enabled: false
+  enabled: true
   websocket_url: "ws://localhost:4455"
   password: ""
   scene_name: "Minecraft Camera"
