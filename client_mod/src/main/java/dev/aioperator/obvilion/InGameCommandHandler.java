@@ -40,7 +40,7 @@ public class InGameCommandHandler {
         // Перехват обычного чата (например, .cam orbit или .op orbit)
         ClientSendMessageEvents.ALLOW_CHAT.register(message -> {
             String trimmed = message.trim();
-            if (trimmed.startsWith(".cam") || trimmed.startsWith(".op")) {
+            if (trimmed.equals(".cam") || trimmed.startsWith(".cam ") || trimmed.equals(".op") || trimmed.startsWith(".op ")) {
                 String args = trimmed.replaceFirst("^\\.(cam|op)", "").trim();
                 handleCommand(args, cameraController, wsClient);
                 return false; // Отменяем отправку на сервер!
@@ -48,11 +48,11 @@ public class InGameCommandHandler {
             return true;
         });
 
-        // Перехват слэш-команд (например, /cam orbit или /op orbit)
+        // Перехват слэш-команд (ТОЛЬКО /cam или /aioperator, НЕ трогая /op и другие серверные команды)
         ClientSendMessageEvents.ALLOW_COMMAND.register(command -> {
             String trimmed = command.trim();
-            if (trimmed.startsWith("cam") || trimmed.startsWith("op")) {
-                String args = trimmed.replaceFirst("^(cam|op)", "").trim();
+            if (trimmed.equals("cam") || trimmed.startsWith("cam ") || trimmed.equals("aioperator") || trimmed.startsWith("aioperator ")) {
+                String args = trimmed.replaceFirst("^(cam|aioperator)", "").trim();
                 handleCommand(args, cameraController, wsClient);
                 return false; // Отменяем отправку на сервер!
             }

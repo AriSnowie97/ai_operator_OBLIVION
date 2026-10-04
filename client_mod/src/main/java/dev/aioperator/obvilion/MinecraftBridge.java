@@ -140,18 +140,29 @@ public class MinecraftBridge {
             try {
                 Object player = getPlayer();
                 if (player == null) return;
+                
+                // Yarn mappings (Fabric 1.21.x)
                 try {
-                    // Mojang mappings
+                    Class<?> textClass = Class.forName("net.minecraft.text.Text");
+                    Object comp = textClass.getMethod("literal", String.class).invoke(null, message);
+                    try {
+                        player.getClass().getMethod("sendMessage", textClass, boolean.class).invoke(player, comp, false);
+                        return;
+                    } catch (NoSuchMethodException e) {
+                        player.getClass().getMethod("sendMessage", textClass).invoke(player, comp);
+                        return;
+                    }
+                } catch (ClassNotFoundException ignored) {}
+
+                // Mojang mappings
+                try {
                     Class<?> compClass = Class.forName("net.minecraft.network.chat.Component");
                     Object comp = compClass.getMethod("literal", String.class).invoke(null, message);
                     player.getClass().getMethod("sendSystemMessage", compClass).invoke(player, comp);
-                } catch (ClassNotFoundException e) {
-                    // Yarn mappings
-                    Class<?> textClass = Class.forName("net.minecraft.text.Text");
-                    Object comp = textClass.getMethod("literal", String.class).invoke(null, message);
-                    player.getClass().getMethod("sendMessage", textClass, boolean.class).invoke(player, comp, false);
-                }
-            } catch (Exception ignored) {}
+                } catch (Exception ignored) {}
+            } catch (Exception e) {
+                AiOperatorClient.LOGGER.error("[AI Operator] Ошибка вывода чата: {}", e.getMessage());
+            }
         });
     }
 }
