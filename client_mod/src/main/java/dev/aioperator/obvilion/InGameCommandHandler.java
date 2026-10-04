@@ -67,11 +67,16 @@ public class InGameCommandHandler {
         String sub = parts.length > 0 ? parts[0].toLowerCase() : "help";
 
         switch (sub) {
-            case "off", "exit", "close", "disable" -> {
-                cameraController.exitCameraMode();
-                MinecraftBridge.printChatMessage("§b[AI Operator] §aСвободная камера отключена! Вы вернулись к обычному виду персонажа.");
+            case "off", "exit", "close", "disable", "pause" -> {
+                cameraController.setManualOverride(true);
+                MinecraftBridge.printChatMessage("§b[AI Operator] §aСвободная камера отключена! AI-оператор на паузе. (Чтобы снова включить: .cam on)");
+            }
+            case "on", "resume", "start", "enable" -> {
+                cameraController.setManualOverride(false);
+                MinecraftBridge.printChatMessage("§b[AI Operator] §aAI-оператор возобновил работу! Камера слушает команды.");
             }
             case "unlock", "unblock", "reset_lock" -> {
+                cameraController.setManualOverride(false);
                 cameraController.exitCameraMode();
                 if (wsClient != null) {
                     wsClient.unlockEmergency();

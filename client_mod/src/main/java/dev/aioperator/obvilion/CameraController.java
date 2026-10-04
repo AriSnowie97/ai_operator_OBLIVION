@@ -21,6 +21,7 @@ public class CameraController {
     // ─── Состояние ─────────────────────────────────────────────────────────────
     private boolean freecamActive = false;
     private boolean isRecording = false;
+    private boolean manualOverride = false;
     private String currentShader = "none";
 
     // MOVE интерполяция
@@ -45,9 +46,26 @@ public class CameraController {
     private double currentX, currentY, currentZ;
     private float currentPitch, currentYaw;
 
+    // ─── Ручной режим игрока ───────────────────────────────────────────────────
+
+    public void setManualOverride(boolean override) {
+        this.manualOverride = override;
+        if (override) {
+            exitCameraMode();
+        }
+    }
+
+    public boolean isManualOverride() {
+        return manualOverride;
+    }
+
     // ─── Команды ───────────────────────────────────────────────────────────────
 
     public void handleMove(JsonObject packet) {
+        if (manualOverride) {
+            AiOperatorClient.LOGGER.info("[Camera] MOVE отклонен: включен ручной режим игрока (.cam off)");
+            return;
+        }
         targetX = packet.get("x").getAsDouble();
         targetY = packet.get("y").getAsDouble();
         targetZ = packet.get("z").getAsDouble();
@@ -78,6 +96,10 @@ public class CameraController {
     }
 
     public void handleOrbit(JsonObject packet) {
+        if (manualOverride) {
+            AiOperatorClient.LOGGER.info("[Camera] ORBIT отклонен: включен ручной режим игрока (.cam off)");
+            return;
+        }
         if (packet.has("center")) {
             var centerElem = packet.get("center");
             if (centerElem.isJsonArray()) {
