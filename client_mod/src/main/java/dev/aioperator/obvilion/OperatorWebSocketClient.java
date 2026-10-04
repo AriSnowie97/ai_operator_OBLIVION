@@ -108,8 +108,14 @@ public class OperatorWebSocketClient implements WebSocket.Listener {
                 case "RETURN_TO_PLAYER"  -> cameraController.handleReturnToPlayer();
                 case "SET_FOV"           -> cameraController.handleSetFov(packet);
                 case "SET_SHADER"        -> cameraController.handleSetShader(packet);
-                case "START_RECORDING"   -> cameraController.startRecording();
-                case "STOP_RECORDING"    -> cameraController.stopRecording();
+                case "START_RECORDING"   -> {
+                    cameraController.startRecording();
+                    ObsLocalBridge.getInstance().startRecording();
+                }
+                case "STOP_RECORDING"    -> {
+                    cameraController.stopRecording();
+                    ObsLocalBridge.getInstance().stopRecording();
+                }
                 case "EMERGENCY_STOP"    -> cameraController.handleEmergencyStop(packet);
                 default -> AiOperatorClient.LOGGER.warn("[AI Operator] Неизвестная команда: {}", type);
             }
@@ -175,7 +181,8 @@ public class OperatorWebSocketClient implements WebSocket.Listener {
             telemetry.addProperty("fov", MinecraftBridge.getFov());
             telemetry.addProperty("fps", MinecraftBridge.getFps());
             telemetry.addProperty("ping", 0);
-            telemetry.addProperty("is_recording", cameraController.isRecording());
+            telemetry.addProperty("is_recording", ObsLocalBridge.getInstance().isRecording() || cameraController.isRecording());
+            telemetry.addProperty("obs_connected", ObsLocalBridge.getInstance().isConnected());
             telemetry.addProperty("shader", cameraController.getCurrentShader());
             telemetry.addProperty("freecam_active", cameraController.isFreecamActive());
 

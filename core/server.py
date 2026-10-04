@@ -253,6 +253,10 @@ async def websocket_minecraft_client(websocket: WebSocket):
                     pos.fov = pkt.get("fov", pos.fov)
                     camera_controller.status.fps = pkt.get("fps", 60.0)
                     camera_controller.status.ping_ms = pkt.get("ping", 5.0)
+                    if "obs_connected" in pkt:
+                        camera_controller.status.obs_connected = bool(pkt["obs_connected"])
+                    if "is_recording" in pkt:
+                        camera_controller.status.is_recording = bool(pkt["is_recording"])
                     await camera_controller.broadcast_telemetry()
                 elif pkt_type == "RECORDING_STATE":
                     camera_controller.status.is_recording = pkt.get("recording", False)

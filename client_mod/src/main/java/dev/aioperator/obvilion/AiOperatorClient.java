@@ -30,6 +30,9 @@ public class AiOperatorClient implements ClientModInitializer {
         wsClient = new OperatorWebSocketClient(config);
         wsClient.connect();
 
+        // Запускаем локальный мост к OBS Studio (порт 4455)
+        ObsLocalBridge.getInstance().start();
+
         // Запускаем таймер тиков (20 раз в секунду, каждые 50мс)
         // Не зависит от Fabric API и версий маппингов Minecraft!
         ticker = Executors.newSingleThreadScheduledExecutor(r -> {
