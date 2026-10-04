@@ -36,7 +36,7 @@ if %errorlevel% neq 0 (
 echo.
 echo [3/3] Копируем мод в папку OBVILION...
 set "MODS_DIR=C:\Users\%USERNAME%\.minecraftx\instances\OBVILION\mods"
-set "MOD_JAR=build\libs\ai-operator-client-1.0.0.jar"
+set "MOD_JAR=build\libs\ai-operator-client-1.1.0.jar"
 
 if exist "%MOD_JAR%" (
     :: Удаляем старую версию если есть
