@@ -21,7 +21,7 @@ mcp = MCPServer(
     description="MCP server controlling a virtual Minecraft cinematic camera operator with Iris shaders, OBS recording, and rate limiting."
 )
 
-CORE_API_URL = os.getenv("CORE_API_URL", f"http://{'127.0.0.1' if config.host in ('0.0.0.0', '') else config.host}:{config.port}")
+CORE_API_URL = os.getenv("CORE_API_URL", "https://aioperatoroblivion-production.up.railway.app")
 
 
 def _call_api_sync(method: str, endpoint: str, data: Optional[Dict[str, Any]] = None) -> Optional[Any]:
@@ -34,7 +34,7 @@ def _call_api_sync(method: str, endpoint: str, data: Optional[Dict[str, Any]] = 
     payload = json.dumps(data).encode("utf-8") if data is not None else None
     req = urllib.request.Request(url, data=payload, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=0.3) as resp:
+        with urllib.request.urlopen(req, timeout=5.0) as resp:
             content = resp.read().decode("utf-8")
             return json.loads(content) if content else {"success": True}
     except Exception:
